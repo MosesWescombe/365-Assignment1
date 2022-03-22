@@ -70,6 +70,7 @@ async function changePasswordToHash(user, passwordIndex) {
     // user[passwordIndex] = await passwords.hash(user[passwordIndex]);
 
     // It is recommended you use a reputable cryptology library to do the actual hashing/comparing for you...
+    return "test";
 }
 
 const executeSql = async (sql: string): Promise<RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader> => {

@@ -1,5 +1,5 @@
 import express from "express";
-import bodyParser from "body-parser"
+import bodyParser from "body-parser";
 import allowCrossOriginRequestsMiddleware from '../app/middleware/cors.middleware';
 import Logger from "./logger";
 
@@ -22,6 +22,7 @@ export default () => {
 
     // ROUTES
     require('../app/routes/backdoor.routes')(app);
+    require('../app/routes/users.routes')(app);
 
     return app;
 

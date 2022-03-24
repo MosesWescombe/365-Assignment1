@@ -11,8 +11,9 @@ module.exports = (app: Express) => {
         .post(users.login);
     app.route(rootUrl + '/users/logout')
         .post(authenticationMiddleware, users.logout);
-    // app.route(rootUrl + '/users/:id')
-    //     .get(users.getUser);
+    app.route(rootUrl + '/users/:id')
+        .get(users.getUser)
+        .patch(authenticationMiddleware, users.updateUser);
     // app.route(rootUrl + '/users/:id/image')
     //     .get(users.getUserImage);
 };

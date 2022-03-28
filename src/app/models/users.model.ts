@@ -1,20 +1,13 @@
 import {getPool} from "../../config/db";
-import fs from 'mz/fs';
-import * as defaultUsers from "../resources/default_users.json"
-
-const imageDirectory = './storage/images/';
-const defaultPhotoDirectory = './storage/default/';
 
 import Logger from "../../config/logger";
-import {OkPacket, ResultSetHeader, RowDataPacket} from "mysql2";
-import logger from "../../config/logger";
+import {ResultSetHeader} from "mysql2";
 
 const registerUser = async (email: string, firstName: string, lastName: string, password: string): Promise<ResultSetHeader> => {
-    Logger.info("Adding user to database " + email);
     const registerSQL = 'INSERT INTO user (`email`, `first_name`, `last_name`, `image_filename`, `password`) VALUES (?)';
 
     try {
-        const [ result ] = await getPool().query(registerSQL, [[email, firstName, lastName, null, await changePasswordToHash(password)]]);
+        const [ result ] = await getPool().query(registerSQL, [[email, firstName, lastName, null, password]]);
         return result;
     } catch (err) {
         Logger.error(err);
@@ -22,27 +15,23 @@ const registerUser = async (email: string, firstName: string, lastName: string, 
     }
 };
 
-const loginUser = async (email: string, password: string, token: string): Promise<number> => {
-    Logger.info("Attempting to log user in with email: " + email);
-    const loginSQL = 'UPDATE user SET auth_token = ? WHERE email = ? AND password = ?';
+const loginUser = async (email: string, token: string): Promise<boolean> => {
+    const loginSQL = 'UPDATE user SET auth_token = ? WHERE email = ?';
 
     try {
-        await getPool().query(loginSQL, [token, email, await changePasswordToHash(password)]);
-        const [ result ] = await getPool().query("SELECT id FROM user WHERE email=? AND password=?", [email, await changePasswordToHash(password)]);
-        if (result.length > 0) return result[0].id;
-        return -1;
+        const [ result ] = await getPool().query(loginSQL, [token, email]);
+        return result.affectedRows > 0;
     } catch (err) {
         Logger.error(err);
         throw err;
     }
 };
 
-const logoutUser = async (userId: number): Promise<ResultSetHeader> => {
-    Logger.info(`Attempting to logout user with ID: ${userId}`);
-    const logoutSQL = 'UPDATE user SET auth_token = NULL WHERE id = ?';
+const logoutUser = async (authCode: string): Promise<ResultSetHeader> => {
+    const logoutSQL = 'UPDATE user SET auth_token = NULL WHERE auth_token = ?';
 
     try {
-        const [ result ] = await getPool().query(logoutSQL, [userId]);
+        const [ result ] = await getPool().query(logoutSQL, [authCode]);
         return result;
     } catch (err) {
         Logger.error(err);
@@ -51,7 +40,6 @@ const logoutUser = async (userId: number): Promise<ResultSetHeader> => {
 };
 
 const getUser = async (id: number): Promise<User> => {
-    Logger.info("Getting user with id: " + id + " from the database");
     const getSQL = 'SELECT * FROM user WHERE id = ?';
 
     try {
@@ -64,9 +52,22 @@ const getUser = async (id: number): Promise<User> => {
     }
 };
 
-const updateUser = async (id: number, firstName: string, lastName: string, email: string, password: string, currentPassword: string): Promise<boolean> => {
-    Logger.info("Updating user with id: " + id);
+const getUserByEmail = async (email: string): Promise<User> => {
+    const getSQL = 'SELECT * FROM user WHERE email = ?';
+
     try {
+        const [ result ] = await getPool().query(getSQL, [email]);
+        if (result.length > 0) return result[0];
+        return null;
+    } catch (err) {
+        Logger.error(err);
+        throw err;
+    }
+};
+
+const updateUser = async (id: number, firstName: string, lastName: string, email: string, password: string, currentPassword: string): Promise<boolean> => {
+    try {
+        const bcrypt = require("bcrypt");
         const values = [];
 
         if (firstName !== undefined) {
@@ -80,15 +81,12 @@ const updateUser = async (id: number, firstName: string, lastName: string, email
         }
         if (password !== undefined && currentPassword !== undefined) {
             const [ databasePassword ] = await getPool().query(`SELECT password FROM user WHERE id=${id}`);
-            Logger.info(`${databasePassword[0].password}, ${await changePasswordToHash(currentPassword)}`)
-            if (databasePassword.length > 0 && databasePassword[0].password === await changePasswordToHash(currentPassword)) {
-                values.push("password='" + await changePasswordToHash(password));
+            if (databasePassword.length > 0 && bcrypt.compareSync(currentPassword, databasePassword[0].password)) {
+                values.push("password='" + password);
             } else {
                 return false;
             }
         }
-
-        Logger.info(`${firstName}, ${lastName}`)
 
         if (values.length > 0) {
             let valueString = "";
@@ -97,7 +95,6 @@ const updateUser = async (id: number, firstName: string, lastName: string, email
                 valueString += value + "'";
             }
             const updateSQL = `UPDATE user SET ${valueString} WHERE id=${id}`;
-            Logger.info(`${updateSQL}`)
             const [ result ] = await getPool().query(updateSQL);
             if (result.affectedRows > 0) return true;
             return null;
@@ -108,12 +105,41 @@ const updateUser = async (id: number, firstName: string, lastName: string, email
     }
 };
 
-async function changePasswordToHash(password: any) {
-    // TODO you need to implement "passwords.hash()" yourself, then uncomment the line below.
-    // user[passwordIndex] = await passwords.hash(user[passwordIndex]);
+const getUserImage = async (id: number): Promise<string> => {
+    const getSQL = 'SELECT * FROM user WHERE id = ?';
 
-    // It is recommended you use a reputable cryptology library to do the actual hashing/comparing for you...
-    return password;
-}
+    try {
+        const [ result ] = await getPool().query(getSQL, [id]);
+        if (result.length > 0) return result[0].image_filename;
+        return null;
+    } catch (err) {
+        Logger.error(err);
+        throw err;
+    }
+};
 
-export {registerUser, loginUser, logoutUser, getUser, updateUser}
+const setUserImage = async (id: number, extension: string): Promise<boolean> => {
+    const setSQL = 'UPDATE user SET image_filename = ? WHERE id = ?';
+
+    try {
+        const [ result ] = await getPool().query(setSQL, ["user_" + id + extension, id]);
+        return result.affectedRows > 0;
+    } catch (err) {
+        Logger.error(err);
+        throw err;
+    }
+};
+
+const deleteUserImage = async (id: number): Promise<boolean> => {
+    const deleteSQL = 'UPDATE user SET image_filename = NULL WHERE id = ?';
+
+    try {
+        const [ result ] = await getPool().query(deleteSQL, [id]);
+        return result.affectedRows > 0;
+    } catch (err) {
+        Logger.error(err);
+        throw err;
+    }
+};
+
+export {registerUser, loginUser, logoutUser, getUser, getUserByEmail, updateUser, getUserImage, setUserImage, deleteUserImage}

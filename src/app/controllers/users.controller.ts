@@ -27,6 +27,18 @@ const register = async (req: Request, res: Response):Promise<void> => {
             return;
         }
 
+        // Check first and last name
+        if (req.body.lastName.length <= 0) {
+            res.statusMessage = "Bad Request"
+            res.status(400).send("lastName must be at least one character long");
+            return;
+        }
+        if (req.body.firstName.length <= 0) {
+            res.statusMessage = "Bad Request"
+            res.status(400).send("firstName must be at least one character long");
+            return;
+        }
+
         const result = await Users.registerUser(req.body.email, req.body.firstName, req.body.lastName, await passwords.hash(req.body.password));
         Logger.info(await passwords.hash(req.body.password) + ", " + await passwords.hash(req.body.password));
         if (result.insertId != null) {
@@ -91,9 +103,14 @@ const logout = async (req: Request, res: Response):Promise<void> => {
             res.status(401).send("Need to supply an X-Authorization header");
             return;
         }
-        await Users.logoutUser(token);
-        res.statusMessage = "OK";
-        res.status(200).send("Successfully logged out user");
+        const loggedOut = await Users.logoutUser(token);
+        if (loggedOut) {
+            res.statusMessage = "OK";
+            res.status(200).send("Successfully logged out user");
+        } else {
+            res.statusMessage = "Unauthorized";
+            res.status(401).send("No user found with the token");
+        }
     } catch (err) {
         Logger.error(err);
         res.statusMessage = "Internal Server Error";
@@ -145,9 +162,19 @@ const updateUser = async (req: Request, res: Response):Promise<void> => {
     try {
         if (req.body.hasOwnProperty("firstName")) {
             firstName = req.body.firstName;
+            if (req.body.firstName.length <= 0) {
+                res.statusMessage = "Bad Request"
+                res.status(400).send("firstName must be at least one character long");
+                return;
+            }
         }
         if (req.body.hasOwnProperty("lastName")) {
             lastName = req.body.lastName;
+            if (req.body.lastName.length <= 0) {
+                res.statusMessage = "Bad Request"
+                res.status(400).send("lastName must be at least one character long");
+                return;
+            }
         }
         if (req.body.hasOwnProperty("email")) {
             // Check email and password
@@ -164,16 +191,20 @@ const updateUser = async (req: Request, res: Response):Promise<void> => {
             email = req.body.email;
         }
         if (req.body.hasOwnProperty("password")) {
+            if (!req.body.hasOwnProperty("currentPassword")) {
+                res.statusMessage = "Bad Request"
+                res.status(400).send("Must have a current password");
+                return;
+            }
             if (req.body.password.length <= 0) {
                 res.statusMessage = "Bad Request"
                 res.status(400).send("Password must be at least one character long");
                 return;
             }
             password = await passwords.hash(req.body.password);
-        }
-        if (req.body.hasOwnProperty("currentPassword")) {
             currentPassword = req.body.currentPassword;
         }
+
 
         const success = await Users.updateUser(parseInt(req.params.id, 10), firstName, lastName, email, password, currentPassword);
         if (success === null) {
@@ -183,8 +214,13 @@ const updateUser = async (req: Request, res: Response):Promise<void> => {
             res.statusMessage = "OK";
             res.status(200).send("Updated user with id: " + req.params.id);
         } else {
-            res.statusMessage = "Forbidden";
-            res.status(403).send("Password does not match.");
+            if (req.body.hasOwnProperty("password")) {
+                res.statusMessage = "Forbidden";
+                res.status(403).send("Password does not match.");
+            } else {
+                res.statusMessage = "Bad Request";
+                res.status(400).send("No parameters supplied");
+            }
         }
     } catch (err) {
         Logger.error(err);
@@ -243,7 +279,8 @@ const getUserImage = async (req: Request, res: Response):Promise<void> => {
 
         if (await fs.exists(fileSystemPath + fileName)) {
             const file = await fs.readFile(fileSystemPath + fileName, fs.binaryType);
-            const extension = fileName.substring(fileName.indexOf(".") + 1);
+            let extension = fileName.substring(fileName.indexOf(".") + 1);
+            if (extension === "jpg") extension = "jpeg";
             res.contentType(`image/${extension}`)
             res.statusMessage = "OK";
             res.status(200).send(file);

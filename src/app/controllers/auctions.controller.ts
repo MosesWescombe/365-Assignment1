@@ -88,6 +88,12 @@ const createAuction = async (req: Request, res: Response):Promise<void> => {
         }
     }
 
+    if (req.body.title.length <= 0) {
+        res.statusMessage = "Bad Request"
+        res.status(400).send("title must be at least one character long");
+        return;
+    }
+
     const today = new Date(Date.now());
     const endDateObject = new Date(req.body.endDate.replace("/", "-").replace(" ", "T"));
     if (today > endDateObject) {
@@ -159,6 +165,13 @@ const updateAuction = async (req: Request, res: Response):Promise<void> => {
                 res.status(400).send("CategoryId must already exist");
                 return;
             }
+        }
+
+        // Check title
+        if (req.body.title.length <= 0) {
+            res.statusMessage = "Bad Request"
+            res.status(400).send("title must be at least one character long");
+            return;
         }
 
         // Update auction
@@ -378,7 +391,8 @@ const getAuctionImage = async (req: Request, res: Response):Promise<void> => {
 
         if (await fs.exists(fileSystemPath + fileName)) {
             const file = await fs.readFile(fileSystemPath + fileName, fs.binaryType);
-            const extension = fileName.substring(fileName.indexOf(".") + 1);
+            let extension = fileName.substring(fileName.indexOf(".") + 1);
+            if (extension === "jpg") extension = "jpeg";
             res.contentType(`image/${extension}`)
             res.statusMessage = "OK";
             res.status(200).send(file);

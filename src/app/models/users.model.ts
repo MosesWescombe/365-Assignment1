@@ -27,12 +27,12 @@ const loginUser = async (email: string, token: string): Promise<boolean> => {
     }
 };
 
-const logoutUser = async (authCode: string): Promise<ResultSetHeader> => {
+const logoutUser = async (authCode: string): Promise<boolean> => {
     const logoutSQL = 'UPDATE user SET auth_token = NULL WHERE auth_token = ?';
 
     try {
         const [ result ] = await getPool().query(logoutSQL, [authCode]);
-        return result;
+        return result.affectedRows > 0;
     } catch (err) {
         Logger.error(err);
         throw err;

@@ -243,7 +243,8 @@ const getUserImage = async (req: Request, res: Response):Promise<void> => {
 
         if (await fs.exists(fileSystemPath + fileName)) {
             const file = await fs.readFile(fileSystemPath + fileName, fs.binaryType);
-            res.contentType("image/jpeg")
+            const extension = fileName.substring(fileName.indexOf(".") + 1);
+            res.contentType(`image/${extension}`)
             res.statusMessage = "OK";
             res.status(200).send(file);
         } else {

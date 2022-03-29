@@ -368,7 +368,7 @@ const getAuctionImage = async (req: Request, res: Response):Promise<void> => {
 
         // tslint:disable-next-line:no-shadowed-variable
         const fs = require("mz/fs");
-        const fileSystemPath = "./storage/images/"
+        const fileSystemPath = "./storage/images/";
         const fileName: string = await Auctions.getAuctionImage(req.params.id);
         if (fileName === null) {
             res.statusMessage = "Not Found";
@@ -378,7 +378,8 @@ const getAuctionImage = async (req: Request, res: Response):Promise<void> => {
 
         if (await fs.exists(fileSystemPath + fileName)) {
             const file = await fs.readFile(fileSystemPath + fileName, fs.binaryType);
-            res.contentType("image/jpeg")
+            const extension = fileName.substring(fileName.indexOf(".") + 1);
+            res.contentType(`image/${extension}`)
             res.statusMessage = "OK";
             res.status(200).send(file);
         } else {

@@ -141,7 +141,7 @@ const getUser = async (req: Request, res: Response):Promise<void> => {
 
         res.statusMessage = "OK";
         res.status(200).send(JSON.parse(
-            `{ "firstName": "${user.first_name}", "lastName": "${user.last_name}"${email}}`
+            `{ "firstName": "${user.first_name}", "lastName": "${user.last_name}, "email": "${email}" }`
         ));
     } catch (err) {
         Logger.error(err);
